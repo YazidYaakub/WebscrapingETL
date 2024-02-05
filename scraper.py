@@ -131,7 +131,7 @@ def get_shopurl(url):
                     data["Time Collected"].append(now.strftime("%H:%M:%S"))
 
     df = pd.DataFrame.from_dict(data, orient="index").transpose()
-    df.to_csv(f'petakopi_data_{now.strftime("%d-%m-%Y")}.csv', index=False)
+    df.to_csv(f'/output csv/pe:takopi_data_{now.strftime("%d-%m-%Y")}.csv', index=False)
     print(f'CSV EXPORTED! - {now.strftime("%H:%M:%S")}')
 
 
