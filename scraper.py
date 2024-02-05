@@ -16,7 +16,7 @@ def get_totalpage(r):
 def get_shopurl(url):
     session = HTMLSession()
     with session.get(url) as r:
-        r.html.render(sleep=2)
+        # r.html.render(sleep=2)
         total_pages = get_totalpage(r)
         data = {
             "UID": [],
@@ -131,7 +131,9 @@ def get_shopurl(url):
                     data["Time Collected"].append(now.strftime("%H:%M:%S"))
 
     df = pd.DataFrame.from_dict(data, orient="index").transpose()
-    df.to_csv(f'/output csv/pe:takopi_data_{now.strftime("%d-%m-%Y")}.csv', index=False)
+    df.to_csv(
+        f'script/output csv/pe:takopi_data_{now.strftime("%d-%m-%Y")}.csv', index=False
+    )
     print(f'CSV EXPORTED! - {now.strftime("%H:%M:%S")}')
 
 
