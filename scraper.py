@@ -132,7 +132,7 @@ def get_shopurl(url):
 
     df = pd.DataFrame.from_dict(data, orient="index").transpose()
     df.to_csv(
-        f'/Users/yazid/dev/webscraping_etl/script/output csv/petakopi_data_{now.strftime("%d-%m-%Y")}.csv',
+        f'petakopi_data_{now.strftime("%d-%m-%Y")}.csv',
         index=False,
     )
     print(f'CSV EXPORTED! - {now.strftime("%H:%M:%S")}')
