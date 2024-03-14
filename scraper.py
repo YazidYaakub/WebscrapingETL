@@ -40,18 +40,25 @@ def get_allshopurl(session, url):
         for page in range(1, total_page + 1):
             page_url = url + f"?page={page}"
             response = session.get(page_url)
-            district = response.html.find(
-                "div.text-sm.text-gray-900 > a.text-brown-600"
-            )[0].text
-            state = response.html.find("div.text-sm.text-gray-900 > a.text-brown-600")[
-                1
-            ].text
-            shop_links = response.html.find(
-                "div.text-sm.font-medium.text-gray-900.flex.items-center"
-            )
-            for shop_link in shop_links:
-                shoplink = shop_link.absolute_links.pop()
-                all_shop_details.append((shoplink, district, state))
+            shop_items = response.html.find("tbody.bg-white > tr.bg-white")
+            for item in shop_items:
+                district_state_links = item.find(
+                    "div.text-sm.text-gray-900 > a.text-brown-600"
+                )
+                if len(district_state_links) >= 2:
+                    district = district_state_links[0].text
+                    state = district_state_links[1].text
+                else:
+                    # Fallback values if not found
+                    district = "Unknown"
+                    state = "Unknown"
+                shop_link_element = item.find(
+                    "div.flex.items-center > div.ml-4 > div > a", first=True
+                )
+                if shop_link_element:
+                    # shoplink = shop_link_element.attrs["href"]
+                    shoplink = list(shop_link_element.absolute_links)[0]
+                    all_shop_details.append((shoplink, district, state))
     return all_shop_details
 
 
