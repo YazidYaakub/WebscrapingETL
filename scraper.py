@@ -34,19 +34,25 @@ def get_allshopurl(session, url):
     Returns:
         list: A list of shop URLs.
     """
-    all_shop_links = []
+    all_shop_details = []
     with session.get(url) as r:
         total_page = get_totalpage(r)
         for page in range(1, total_page + 1):
             page_url = url + f"?page={page}"
             response = session.get(page_url)
+            district = response.html.find(
+                "div.text-sm.text-gray-900 > a.text-brown-600"
+            )[0].text
+            state = response.html.find("div.text-sm.text-gray-900 > a.text-brown-600")[
+                1
+            ].text
             shop_links = response.html.find(
                 "div.text-sm.font-medium.text-gray-900.flex.items-center"
             )
             for shop_link in shop_links:
                 shoplink = shop_link.absolute_links.pop()
-                all_shop_links.append(shoplink)
-    return all_shop_links
+                all_shop_details.append((shoplink, district, state))
+    return all_shop_details
 
 
 def extract_shop_data(response):
@@ -71,7 +77,7 @@ def extract_shop_data(response):
     )
     tags = ", ".join([re.sub(r"[^\w\s]", "", element.text) for element in tag_elements])
 
-    shop_data["UID"] = uid
+    shop_data["Shop_ID"] = uid
     shop_data["Shopname"] = shopname
     shop_data["Tag"] = tags
 
@@ -123,11 +129,15 @@ def extract_social_data(response):
 
 
 def get_data(session, url, data):
-    shop_links = get_allshopurl(session, url)
-    for link in tqdm(shop_links):
+    shop_details = get_allshopurl(session, url)
+    for details in tqdm(shop_details):
+        link, district, state = details
         response = session.get(link)
         shop_data = extract_shop_data(response)
         social_data = extract_social_data(response)
+
+        shop_data["District"] = district
+        shop_data["State"] = state
 
         for key, value in {**shop_data, **social_data}.items():
             data[key].append(value)
@@ -142,10 +152,12 @@ def main():
     url = "https://petakopi.my/"
 
     data = {
-        "UID": [],
+        "Shop_ID": [],
         "Shopname": [],
         "Tag": [],
         "Googlemap": [],
+        "District": [],
+        "State": [],
         "Latitude": [],
         "Longitude": [],
         "Instagram": [],
