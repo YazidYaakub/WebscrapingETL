@@ -2,3 +2,5 @@
 .DS_Store
 ./mypy_cache/
 *.csv
+test.py
+

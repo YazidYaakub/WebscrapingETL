@@ -2,133 +2,162 @@ from requests_html import HTMLSession
 import pandas as pd
 import re
 from datetime import datetime
+from tqdm import tqdm
 
 now = datetime.now()
 
 
 def get_totalpage(r):
+    """
+    Extracts the total number of pages from the response object.
+
+    Args:
+        r (requests.Response): The HTML response object.
+
+    Returns:
+        int: The total number of pages.
+    """
     pgnum = []
     for html in r.html:
         pgnum.append(html)
     return len(pgnum)
 
 
-def get_shopurl(url):
-    session = HTMLSession()
+def get_allshopurl(session, url):
+    """
+    Extracts a list of shop URLs from the given base URL.
+
+    Args:
+        session (requests_html.HTMLSession): The HTML session object.
+        url (str): The base URL to scrape shop listings.
+
+    Returns:
+        list: A list of shop URLs.
+    """
+    all_shop_links = []
     with session.get(url) as r:
-        # r.html.render(sleep=2)
-        total_pages = get_totalpage(r)
-        data = {
-            "UID": [],
-            "Shopname": [],
-            "Tag": [],
-            "Gmap": [],
-            "Latitude": [],
-            "Longitude": [],
-            "Instagram": [],
-            "Facebook": [],
-            "Twitter": [],
-            "Tiktok": [],
-            "Whatsapp": [],
-            "Date Collected": [],
-            "Time Collected": [],
-        }
-        for page in range(1, total_pages + 1):
+        total_page = get_totalpage(r)
+        for page in range(1, total_page + 1):
             page_url = url + f"?page={page}"
             response = session.get(page_url)
             shop_links = response.html.find(
                 "div.text-sm.font-medium.text-gray-900.flex.items-center"
             )
             for shop_link in shop_links:
-                shoplink = shop_link.absolute_links
-                for link in shoplink:
-                    response = session.get(link)
+                shoplink = shop_link.absolute_links.pop()
+                all_shop_links.append(shoplink)
+    return all_shop_links
 
-                    uid = link.split("/")[3]
 
-                    shopname_element = response.html.find(
-                        "div.mt-5.text-center.text-2xl.font-bold.leading-9.tracking-tight.text-gray-900.flex.items-center.space-x-2.justify-center"
-                    )[0]
+def extract_shop_data(response):
+    """
+    Extracts shop data from a response object.
 
-                    shopname = shopname_element.find("span")[0].text
-                    tag_elements = response.html.find(
-                        "div.flex.space-x-2.justify-center.flex-wrap.-mt-2 a span"
-                    )
-                    # tag = [element.text for element in tag_elements]
-                    tag = ", ".join(
-                        [
-                            re.sub(r"[^\w\s]", "", element.text)
-                            for element in tag_elements
-                        ]
-                    )
+    Args:
+        response (requests.Response): The HTML response object.
 
-                    google_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='google.com']"
-                    )
+    Returns:
+        dict: Extracted shop details including UID, shop name, and tags.
+    """
+    shop_data = {}
 
-                    instagram_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='instagram.com']"
-                    )
+    uid = response.url.split("/")[3]
+    shopname_element = response.html.find(
+        "div.mt-5.text-center.text-2xl.font-bold.leading-9.tracking-tight.text-gray-900.flex.items-center.space-x-2.justify-center"
+    )[0]
+    shopname = shopname_element.find("span")[0].text
+    tag_elements = response.html.find(
+        "div.flex.space-x-2.justify-center.flex-wrap.-mt-2 a span"
+    )
+    tags = ", ".join([re.sub(r"[^\w\s]", "", element.text) for element in tag_elements])
 
-                    facebook_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='facebook.com']"
-                    )
+    shop_data["UID"] = uid
+    shop_data["Shopname"] = shopname
+    shop_data["Tag"] = tags
 
-                    twitter_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='twitter.com']"
-                    )
+    return shop_data
 
-                    tiktok_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='tiktok.com']"
-                    )
 
-                    whatsapp_element = response.html.find(
-                        "div.flex.flex-col.space-y-4 a[href*='wa.me']"
-                    )
+def extract_social_data(response):
+    """
+    Extracts social media links and location data from a response object.
 
-                    googlemap = (
-                        google_element[0].attrs["href"] if google_element else ""
-                    )
+    Args:
+        response (requests.Response): The HTML response object.
 
-                    latitude = (
-                        re.search(r"([0-9.]+),([0-9.]+)", googlemap).group(1)
-                        if googlemap
-                        else ""
-                    )
+    Returns:
+        dict: Extracted social media and location details.
+    """
+    social_data = {}
 
-                    longitude = (
-                        re.search(r"([0-9.]+),([0-9.]+)", googlemap).group(2)
-                        if googlemap
-                        else ""
-                    )
+    elements_mapping = {
+        "googlemap": "div.flex.flex-col.space-y-4 a[href*='google.com']",
+        "instagram": "div.flex.flex-col.space-y-4 a[href*='instagram.com']",
+        "facebook": "div.flex.flex-col.space-y-4 a[href*='facebook.com']",
+        "twitter": "div.flex.flex-col.space-y-4 a[href*='twitter.com']",
+        "tiktok": "div.flex.flex-col.space-y-4 a[href*='tiktok.com']",
+        "whatsapp": "div.flex.flex-col.space-y-4 a[href*='wa.me']",
+    }
 
-                    instagram = (
-                        instagram_element[0].attrs["href"] if instagram_element else ""
-                    )
-                    facebook = (
-                        facebook_element[0].attrs["href"] if facebook_element else ""
-                    )
-                    twitter = (
-                        twitter_element[0].attrs["href"] if twitter_element else ""
-                    )
-                    tiktok = tiktok_element[0].attrs["href"] if tiktok_element else ""
-                    whatsapp = (
-                        whatsapp_element[0].attrs["href"] if whatsapp_element else ""
-                    )
+    for key, value in elements_mapping.items():
+        element = response.html.find(value)
+        if element:
+            link = element[0].attrs["href"]
+            if key == "googlemap":
+                latitude = (
+                    re.search(r"([0-9.]+),([0-9.]+)", link).group(1) if link else ""
+                )
+                longitude = (
+                    re.search(r"([0-9.]+),([0-9.]+)", link).group(2) if link else ""
+                )
+                social_data["Latitude"] = latitude
+                social_data["Longitude"] = longitude
+            social_data[key.capitalize()] = link
+        else:
+            if key == "googlemap":
+                social_data["Latitude"] = ""
+                social_data["Longitude"] = ""
+            social_data[key.capitalize()] = ""
 
-                    data["UID"].append(uid)
-                    data["Shopname"].append(shopname)
-                    data["Tag"].append(tag)
-                    data["Gmap"].append(googlemap)
-                    data["Latitude"].append(latitude)
-                    data["Longitude"].append(longitude)
-                    data["Instagram"].append(instagram)
-                    data["Facebook"].append(facebook)
-                    data["Twitter"].append(twitter)
-                    data["Tiktok"].append(tiktok)
-                    data["Whatsapp"].append(whatsapp)
-                    data["Date Collected"].append(now.strftime("%d-%m-%Y"))
-                    data["Time Collected"].append(now.strftime("%H:%M:%S"))
+    return social_data
+
+
+def get_data(session, url, data):
+    shop_links = get_allshopurl(session, url)
+    for link in tqdm(shop_links):
+        response = session.get(link)
+        shop_data = extract_shop_data(response)
+        social_data = extract_social_data(response)
+
+        for key, value in {**shop_data, **social_data}.items():
+            data[key].append(value)
+
+        # Append date and time collected
+        data["Date Collected"].append(now.strftime("%d-%m-%Y"))
+        data["Time Collected"].append(now.strftime("%H:%M:%S"))
+
+
+def main():
+    session = HTMLSession()
+    url = "https://petakopi.my/"
+
+    data = {
+        "UID": [],
+        "Shopname": [],
+        "Tag": [],
+        "Googlemap": [],
+        "Latitude": [],
+        "Longitude": [],
+        "Instagram": [],
+        "Facebook": [],
+        "Twitter": [],
+        "Tiktok": [],
+        "Whatsapp": [],
+        "Date Collected": [],
+        "Time Collected": [],
+    }
+
+    get_data(session, url, data)
 
     df = pd.DataFrame.from_dict(data, orient="index").transpose()
     df.to_csv(
@@ -136,10 +165,6 @@ def get_shopurl(url):
         index=False,
     )
     print(f'CSV EXPORTED! - {now.strftime("%H:%M:%S")}')
-
-
-def main():
-    get_shopurl("https://petakopi.my/")
 
 
 if __name__ == "__main__":
