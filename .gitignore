@@ -3,4 +3,5 @@
 ./mypy_cache/
 *.csv
 test.py
+t1.py
 

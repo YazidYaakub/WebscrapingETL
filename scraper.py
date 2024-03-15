@@ -41,24 +41,42 @@ def get_allshopurl(session, url):
             page_url = url + f"?page={page}"
             response = session.get(page_url)
             shop_items = response.html.find("tbody.bg-white > tr.bg-white")
+
             for item in shop_items:
                 district_state_links = item.find(
                     "div.text-sm.text-gray-900 > a.text-brown-600"
                 )
-                if len(district_state_links) >= 2:
+                # Ensure at least one link is found, else default to Unknown
+                district, state = "Unknown", "Unknown"
+                if len(district_state_links) >= 1:
                     district = district_state_links[0].text
-                    state = district_state_links[1].text
-                else:
-                    # Fallback values if not found
-                    district = "Unknown"
-                    state = "Unknown"
+                    if len(district_state_links) >= 2:
+                        state = district_state_links[1].text
                 shop_link_element = item.find(
                     "div.flex.items-center > div.ml-4 > div > a", first=True
                 )
                 if shop_link_element:
-                    # shoplink = shop_link_element.attrs["href"]
                     shoplink = list(shop_link_element.absolute_links)[0]
                     all_shop_details.append((shoplink, district, state))
+
+            # for item in shop_items:
+            #     district_state_links = item.find(
+            #         "div.text-sm.text-gray-900 > a.text-brown-600"
+            #     )
+            #     if len(district_state_links) >= 2:
+            #         district = district_state_links[0].text
+            #         state = district_state_links[1].text
+            #     else:
+            #         # Fallback values if not found
+            #         district = "Unknown"
+            #         state = "Unknown"
+            #     shop_link_element = item.find(
+            #         "div.flex.items-center > div.ml-4 > div > a", first=True
+            #     )
+            #     if shop_link_element:
+            #         # shoplink = shop_link_element.attrs["href"]
+            #         shoplink = list(shop_link_element.absolute_links)[0]
+            #         all_shop_details.append((shoplink, district, state))
     return all_shop_details
 
 
