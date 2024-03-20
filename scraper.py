@@ -1,8 +1,11 @@
 from requests_html import HTMLSession
 import pandas as pd
 import re
+import os
 from datetime import datetime
 from tqdm import tqdm
+import csv
+from rich import print
 
 now = datetime.now()
 
@@ -58,25 +61,6 @@ def get_allshopurl(session, url):
                 if shop_link_element:
                     shoplink = list(shop_link_element.absolute_links)[0]
                     all_shop_details.append((shoplink, district, state))
-
-            # for item in shop_items:
-            #     district_state_links = item.find(
-            #         "div.text-sm.text-gray-900 > a.text-brown-600"
-            #     )
-            #     if len(district_state_links) >= 2:
-            #         district = district_state_links[0].text
-            #         state = district_state_links[1].text
-            #     else:
-            #         # Fallback values if not found
-            #         district = "Unknown"
-            #         state = "Unknown"
-            #     shop_link_element = item.find(
-            #         "div.flex.items-center > div.ml-4 > div > a", first=True
-            #     )
-            #     if shop_link_element:
-            #         # shoplink = shop_link_element.attrs["href"]
-            #         shoplink = list(shop_link_element.absolute_links)[0]
-            #         all_shop_details.append((shoplink, district, state))
     return all_shop_details
 
 
@@ -122,19 +106,19 @@ def extract_social_data(response):
     social_data = {}
 
     elements_mapping = {
-        "googlemap": "div.flex.flex-col.space-y-4 a[href*='google.com']",
-        "instagram": "div.flex.flex-col.space-y-4 a[href*='instagram.com']",
-        "facebook": "div.flex.flex-col.space-y-4 a[href*='facebook.com']",
-        "twitter": "div.flex.flex-col.space-y-4 a[href*='twitter.com']",
-        "tiktok": "div.flex.flex-col.space-y-4 a[href*='tiktok.com']",
-        "whatsapp": "div.flex.flex-col.space-y-4 a[href*='wa.me']",
+        "googlemap_link": "div.flex.flex-col.space-y-4 a[href*='google.com']",
+        "instagram_link": "div.flex.flex-col.space-y-4 a[href*='instagram.com']",
+        "facebook_link": "div.flex.flex-col.space-y-4 a[href*='facebook.com']",
+        "twitter_link": "div.flex.flex-col.space-y-4 a[href*='twitter.com']",
+        "tiktok_link": "div.flex.flex-col.space-y-4 a[href*='tiktok.com']",
+        "whatsapp_link": "div.flex.flex-col.space-y-4 a[href*='wa.me']",
     }
 
     for key, value in elements_mapping.items():
         element = response.html.find(value)
         if element:
             link = element[0].attrs["href"]
-            if key == "googlemap":
+            if key == "googlemap_link":
                 latitude = (
                     re.search(r"([0-9.]+),([0-9.]+)", link).group(1) if link else ""
                 )
@@ -145,7 +129,7 @@ def extract_social_data(response):
                 social_data["Longitude"] = longitude
             social_data[key.capitalize()] = link
         else:
-            if key == "googlemap":
+            if key == "googlemap_link":
                 social_data["Latitude"] = ""
                 social_data["Longitude"] = ""
             social_data[key.capitalize()] = ""
@@ -154,6 +138,24 @@ def extract_social_data(response):
 
 
 def get_data(session, url, data):
+    code_map = {
+        "Johor": 1,
+        "Kedah": 2,
+        "Kelantan": 3,
+        "Melaka": 4,
+        "Negeri Sembilan": 5,
+        "Pahang": 6,
+        "Perak": 8,
+        "Perlis": 9,
+        "Pulau Pinang": 7,
+        "Sabah": 12,
+        "Sarawak": 13,
+        "Selangor": 10,
+        "Terengganu": 11,
+        "Kuala Lumpur": 14,
+        "Labuan": 15,
+        "Putrajaya": 16,
+    }
     shop_details = get_allshopurl(session, url)
     for details in tqdm(shop_details):
         link, district, state = details
@@ -164,12 +166,22 @@ def get_data(session, url, data):
         shop_data["District"] = district
         shop_data["State"] = state
 
+        state_code = code_map.get(state, "Unknown")
+        shop_data["State_code"] = state_code
+
         for key, value in {**shop_data, **social_data}.items():
             data[key].append(value)
 
         # Append date and time collected
         data["Date Collected"].append(now.strftime("%d-%m-%Y"))
         data["Time Collected"].append(now.strftime("%H:%M:%S"))
+
+
+def clean_field(field):
+    """Cleans the field by replacing or removing problematic characters."""
+    if isinstance(field, str):
+        return field.replace("\n", " ").replace("\r", " ").strip()
+    return field
 
 
 def main():
@@ -180,28 +192,60 @@ def main():
         "Shop_ID": [],
         "Shopname": [],
         "Tag": [],
-        "Googlemap": [],
+        "Googlemap_link": [],
         "District": [],
         "State": [],
+        "State_code": [],
         "Latitude": [],
         "Longitude": [],
-        "Instagram": [],
-        "Facebook": [],
-        "Twitter": [],
-        "Tiktok": [],
-        "Whatsapp": [],
+        "Instagram_link": [],
+        "Facebook_link": [],
+        "Twitter_link": [],
+        "Tiktok_link": [],
+        "Whatsapp_link": [],
         "Date Collected": [],
         "Time Collected": [],
     }
 
     get_data(session, url, data)
 
-    df = pd.DataFrame.from_dict(data, orient="index").transpose()
-    df.to_csv(
-        f'scraped_data_{now.strftime("%d-%m-%Y")}.csv',
-        index=False,
-    )
-    print(f'CSV EXPORTED! - {now.strftime("%H:%M:%S")}')
+    file_name = "/code/output_csv/scraped_data.csv"
+    existing_shop_ids = set()
+
+    # Check if the file exists and read existing shop IDs to avoid duplications
+    if os.path.exists(file_name):
+        with open(file_name, mode="r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            existing_shop_ids = {row["Shop_ID"] for row in reader}
+
+    # Prepare new data, cleaning each field
+    new_data_cleaned = {
+        key: [clean_field(value) for value in values] for key, values in data.items()
+    }
+
+    # Append new data if not already exists
+    with open(file_name, mode="a", newline="", encoding="utf-8") as file:
+
+        # Ensure the file ends with a newline if it's not empty
+        file.seek(0, os.SEEK_END)  # Move to the end of the file
+        if file.tell() > 0:  # If the file is not empty
+            file.write("\n")
+
+        fieldnames = list(data.keys())  # Headers for CSV
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+        # Write headers if the file is new or empty
+        if file.tell() == 0:
+            writer.writeheader()
+
+        # Append each new row to the CSV
+        for i in range(len(new_data_cleaned["Shop_ID"])):
+            row = {key: new_data_cleaned[key][i] for key in new_data_cleaned}
+            if row["Shop_ID"] not in existing_shop_ids:
+                print(f'New Value : {row["Shop_ID"]}')
+                writer.writerow(row)
+
+    print("Data appended successfully.")
 
 
 if __name__ == "__main__":
