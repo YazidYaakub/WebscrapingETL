@@ -59,6 +59,9 @@ for _, row in df.iterrows():
         .first()
     )
 
+    if existing_shop_id is None:
+        print("Shop ID not found:", row["Shop_ID"])
+
     # If the shop_id does not exist, proceed with data ingestion
     if not existing_shop_id:
         print(existing_shop_id)
